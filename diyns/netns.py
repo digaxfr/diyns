@@ -1,13 +1,18 @@
 """
-Stub.
+Linux Kernel Network Namespaces
 """
 
 import json
+import subprocess
+from os import path
+from . import config
 
 class NetworkNamespace:
     """
-    Stub.
+    NetworkNamespace is a Linux Network namespace.
     """
+
+    _ip_cmd = '/usr/bin/ip'
 
     def __init__(self, name):
         self.name = name
@@ -18,25 +23,55 @@ class NetworkNamespace:
     def create(self):
         """
         Create the network namespace.
-
-        Parameters:
-        None
-
-        Returns:
-        None
         """
 
-        return True
+        if not self.status():
+            try:
+                cp = subprocess.run([NetworkNamespace._ip_cmd,
+                    'netns',
+                    'add',
+                    self.name],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=True)
+
+                if config.debug:
+                    print(cp)
+
+            except subprocess.CalledProcessError as e:
+                stderr = e.stderr.decode('utf-8')
+                print(f'An error occurred while creating the network namespace: {stderr}')
 
     def delete(self):
         """
         Delete the network namespace.
-
-        Parameters:
-        None
-
-        Returns:
-        None
         """
 
-        return True
+        # Future: Handle cases where the netns is still in use.
+
+        if self.status():
+            try:
+                cp = subprocess.run([NetworkNamespace._ip_cmd,
+                    'netns',
+                    'delete',
+                    self.name],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    check=True)
+
+                if config.debug:
+                    print(cp)
+
+            except subprocess.CalledProcessError as e:
+                stderr = e.stderr.decode('utf-8')
+                print(f'An error occurred while deleting  the network namespace: {stderr}')
+
+    def status(self):
+        """
+        Check if the network namespace exists or not.
+
+        Returns:
+            boolean: True if the network namespace exists.
+        """
+
+        return path.exists(f'/run/netns/{self.name}')
