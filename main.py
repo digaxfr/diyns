@@ -2,9 +2,3 @@
 """
 Stub.
 """
-
-from diyns.netns import NetworkNamespace
-
-ns = NetworkNamespace("Hi")
-
-print(ns)

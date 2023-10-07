@@ -4,6 +4,7 @@ Linux Kernel Network Namespaces
 
 import json
 import subprocess
+import sys
 from os import path
 from . import config
 
@@ -18,7 +19,7 @@ class NetworkNamespace:
         self.name = name
 
     def __str__(self):
-        return json.dumps(self.__dict__, indent=2)
+        return json.dumps(self.__dict__)
 
     def create(self):
         """
@@ -36,11 +37,12 @@ class NetworkNamespace:
                     check=True)
 
                 if config.debug:
-                    print(cp)
+                    print(cp)   # pragma: nocover
 
             except subprocess.CalledProcessError as e:
                 stderr = e.stderr.decode('utf-8')
                 print(f'An error occurred while creating the network namespace: {stderr}')
+                raise
 
     def delete(self):
         """
@@ -60,11 +62,12 @@ class NetworkNamespace:
                     check=True)
 
                 if config.debug:
-                    print(cp)
+                    print(cp)   # pragma: nocover
 
             except subprocess.CalledProcessError as e:
                 stderr = e.stderr.decode('utf-8')
-                print(f'An error occurred while deleting  the network namespace: {stderr}')
+                print(f'An error occurred while deleting the network namespace: {stderr}')
+                raise
 
     def status(self):
         """
