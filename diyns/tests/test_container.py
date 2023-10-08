@@ -18,12 +18,11 @@ class TestContainer(unittest.TestCase):
         container = Container(TestContainer._container_name, TestContainer._netns_name)
         self.assertEqual(container.name, TestContainer._container_name)
 
-    def test_create(self):
+    def test_up_down(self):
         netns = NetworkNamespace(TestContainer._netns_name)
         netns.create()
         container = Container(TestContainer._container_name, TestContainer._netns_name)
-        container.create()
-
+        container.up()
 #        netns.delete()
 
 if __name__ == '__main__':

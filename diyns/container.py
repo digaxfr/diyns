@@ -22,9 +22,9 @@ class Container:
         self.name = name
         self.netns = netns
         self.ports = []
-        self.rootfs = f'{config.container_dir}/{name}/rootfs'
+        self.rootfs = f'{config.CONTAINER_DIR}/{name}/rootfs'
 
-    def create(self):
+    def up(self):
         # Need to check if the container is running first
 
         # Launch the container sleeper process
@@ -49,17 +49,45 @@ class Container:
                 stderr=None,
                 )
 
-            print(popen.pid)
-            #popen.kill()
+            # Save the PID of unshare
+            with open(f'{config.CONTAINER_DIR}/{self.name}/unshare.pid', 'w') as file:
+                file.write(str(popen.pid))
 
-        except ResourceWarning as e:
-            print(e)
+            # Get and save the child PID (sleeper)
+            sleeper_pid = self._get_child_pid(str(popen.pid))
+            with open(f'{config.CONTAINER_DIR}/{self.name}/sleeper.pid', 'w') as file:
+                file.write(str(sleeper_pid))
 
         except subprocess.CalledProcessError as e:
             stderr = e.stderr.decode('utf-8')
             print(f'An error occurred while creating the container: {stderr}')
             raise
 
-        # Store the child PID
 
-    # Delete
+    def _get_child_pid(self, ppid):
+        try:
+            popen = subprocess.Popen([
+                'ps',
+                '--ppid',
+                ppid,
+                '-o',
+                'pid='
+                ],
+                shell=False,
+                stdin=None,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE
+                )
+            rc = popen.wait()
+
+            if rc != 0:
+                print("An error occurred while getting the child pid")
+                raise
+
+            child_pid = str(popen.stdout.read().decode('utf-8')).strip(' ')
+            return child_pid
+
+        except subprocess.CalledProcessError as e:
+            stderr = e.stderr.decode('utf-8')
+            print(f'An error occurred while getting the child PID: {stderr}')
+            raise
