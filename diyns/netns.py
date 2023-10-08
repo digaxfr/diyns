@@ -4,7 +4,6 @@ Linux Kernel Network Namespaces
 
 import json
 import subprocess
-import sys
 from os import path
 from . import config
 
