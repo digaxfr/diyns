@@ -11,7 +11,7 @@ from diyns.netns import NetworkNamespace
 
 class TestContainer(unittest.TestCase):
 
-    _netns_name = 'tofutests1'
+    _netns_name = 'tofutests3'
     _container_name = 'tofu'
     _container_name_never = 'thiswillneverexisthopefully'
 

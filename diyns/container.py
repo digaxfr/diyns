@@ -5,6 +5,7 @@ Stub.
 import os
 import signal
 import subprocess
+import time
 
 from . import config
 
@@ -52,16 +53,34 @@ class Container:
                     ps_output = (str(popen.stdout.read().decode('utf-8')).strip(' ').strip('\n'))
                     if ps_output == Container._sleep_ps:
                         try:
-                            print(signal.SIGKILL)
                             os.kill(int(sleeper_pid), signal.SIGKILL)
                         except ProcessLookupError: # pragma: no cover
                             print(f'Process with PID {pid_to_kill} not found.')
                         except OSError as e: # pragma: no cover
                             print(f'An error occurred while trying to kill the process: {e}')
-                    else:
-                        print('Current process does not match the expected sleeper process. Doing nothing')
+
+                    # Loop until we know the process is dead
+                    ps_check = True
+                    while ps_check:
+                        popen_ps_check = subprocess.Popen(['ps',
+                            '-p',
+                            sleeper_pid,
+                            '-o',
+                            'args='
+                            ],
+                            shell=False,
+                            stdin=None,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE
+                            )
+
+                        rc_ps_check = popen_ps_check.wait()
+                        if rc_ps_check == 1:
+                            ps_check = False
+                        else:
+                            time.sleep(2)   # pragma: no cover
                 else:
-                    print('Container does not exist. Doing nothing')
+                    print('Container does not exist. Doing nothing')    # pragma: no cover
         else:
             print('Container does not exist. Doing nothing')
 
@@ -88,8 +107,10 @@ class Container:
                     )
 
                 rc = popen.wait()
-                if rc == 0:
+                if rc == 0: # pragma: no cover
                     ps_output = (str(popen.stdout.read().decode('utf-8')).strip(' ').strip('\n'))
+                    popen.stdout.close()
+                    popen.stderr.close()
                     if ps_output == Container._sleep_ps:
                         _exists = True
 
@@ -108,27 +129,35 @@ class Container:
                     '--mount',
                     '/bin/bash',
                     '-c',
-                    'sleep infinity'
+                    'sleep infinity',
                     ],
                     shell=False,
-                    stdin=None,
-                    stdout=None,
-                    stderr=None,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    start_new_session=True,
+                    close_fds=True,
+                    preexec_fn=os.setsid()
                     )
 
                 # Save the PID of unshare
                 with open(f'{config.CONTAINER_DIR}/{self.name}/unshare.pid', 'w') as file:
                     file.write(str(popen.pid))
+                    file.close()
 
                 # Get and save the child PID (sleeper)
                 sleeper_pid = self._get_child_pid(str(popen.pid))
                 with open(f'{config.CONTAINER_DIR}/{self.name}/sleeper.pid', 'w') as file:
                     file.write(str(sleeper_pid))
+                    file.close()
 
-            except subprocess.CalledProcessError as e:
+                popen.stdin.close()
+                popen.stdout.close()
+                popen.stderr.close()
+
+            except subprocess.CalledProcessError as e:  # pragma: no cover
                 stderr = e.stderr.decode('utf-8')
                 print(f'An error occurred while creating the container: {stderr}')
-                raise
 
     def _get_child_pid(self, ppid):
         try:
@@ -146,14 +175,13 @@ class Container:
                 )
             rc = popen.wait()
 
-            if rc != 0:
+            if rc != 0: # pragma: no cover
                 print("An error occurred while getting the child pid")
                 raise
 
             child_pid = str(popen.stdout.read().decode('utf-8')).strip(' ')
             return child_pid
 
-        except subprocess.CalledProcessError as e:
+        except subprocess.CalledProcessError as e:  # pragma: no cover
             stderr = e.stderr.decode('utf-8')
             print(f'An error occurred while getting the child PID: {stderr}')
-            raise

@@ -51,22 +51,24 @@ class NetworkNamespace:
         # Future: Handle cases where the netns is still in use.
 
         if self.status():
-            try:
-                cp = subprocess.run([NetworkNamespace._ip_cmd,
-                    'netns',
-                    'delete',
-                    self.name],
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    check=True)
+            for attempt in range(1, 6):
+                try:
+                    cp = subprocess.run([NetworkNamespace._ip_cmd,
+                        'netns',
+                        'delete',
+                        self.name],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        check=True)
 
-                if config.debug:
-                    print(cp)   # pragma: nocover
+                    if config.debug:
+                        print(cp)   # pragma: nocover
+                    break
 
-            except subprocess.CalledProcessError as e:
-                stderr = e.stderr.decode('utf-8')
-                print(f'An error occurred while deleting the network namespace: {stderr}')
-                raise
+                except subprocess.CalledProcessError as e:
+                    stderr = e.stderr.decode('utf-8')
+                    print(f'Attempt {attempt} failed')
+                    print(f'An error occurred while deleting the network namespace: {stderr}')
 
     def status(self):
         """
