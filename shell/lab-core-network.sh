@@ -3,6 +3,7 @@
 set -e
 
 ctr_lib_dir=/var/lib/lab-containers
+eth0="enP4p65s0"
 sleeper_ps_args="sleep infinity"
 containers=(
     "leaf1"
@@ -10,6 +11,20 @@ containers=(
     "leaf3"
     "spine1"
     "spine2"
+)
+
+lab_networks=(
+    "fd73:6172:6168:a14::"
+    "fd73:6172:6168:a15::"
+    "fd73:6172:6168:a16::"
+    "fd73:6172:6168:a17::"
+    "fd73:6172:6168:a18::"
+    "fd73:6172:6168:a19::"
+    "fd73:6172:6168:a1a::"
+    "fd73:6172:6168:a1b::"
+    "fd73:6172:6168:a1c::"
+    "fd73:6172:6168:a1d::"
+    "fd73:6172:6168:a1e::"
 )
 
 function bind_rootfs() {
@@ -118,20 +133,55 @@ function create_network_namespace() {
 }
 
 function delete_network_namespace() {
-    if [ -f /run/netns/${1} ]; then
-        ip netns delete ${1}
-    fi
+    for attempt in {1..5}; do
+        if [ -f /run/netns/${1} ]; then
+            if ip netns delete ${1}; then
+                break
+            fi
+        fi
+    done
 }
 
 function start_sshd() {
     child_pid=$(cat "${ctr_lib_dir}/${1}/sleeper.pid")
 
-    nsenter -t ${child_pid} -a --root=/proc/${child_pid}/root hostname ${1}
+    nsenter -t ${child_pid} -a --root=/proc/${child_pid}/root mkdir -p /run/sshd
+    nsenter -t ${child_pid} -a --root=/proc/${child_pid}/root chmod 0755 /run/sshd
+    nsenter -t ${child_pid} -a --root=/proc/${child_pid}/root /usr/sbin/sshd -D 1>${ctr_lib_dir}/${1}/sshd.1.log 2>${ctr_lib_dir}/${1}/sshd.2.log &
+}
+
+function unbind_rootfs() {
+    if findmnt ${ctr_lib_dir}/${1}/rootfs >/dev/null; then
+        umount ${ctr_lib_dir}/${1}/rootfs
+    fi
+}
+
+function configure_iptables() {
+    for network in ${lab_networks[@]}; do
+        if ! ip6tables --check FORWARD -s "${network}/64" -j ACCEPT 1>/dev/null 2>&1; then
+            ip6tables -A FORWARD -s "${network}/64" -j ACCEPT
+        fi
+
+        if ! ip6tables --check FORWARD -d "${network}/64" -j ACCEPT 1>/dev/null 2>&1; then
+            ip6tables -A FORWARD -d "${network}/64" -j ACCEPT
+        fi
+
+        if ! ip6tables -t nat --check POSTROUTING -s "${network}/64" -o ${eth0} -j MASQUERADE 1>/dev/null 2>&1; then
+            ip6tables -t nat -A POSTROUTING -s "${network}/64" -o ${eth0} -j MASQUERADE
+        fi
+    done
+
+    # Sneak this in here...
+    if [ "$(sysctl -n net.ipv6.conf.all.forwarding)" == 0 ]; then
+        sysctl net.ipv6.conf.all.forwarding=1
+    fi
 }
 
 function main() {
     case "${1}" in
         "up")
+            configure_iptables
+
             for container in "${containers[@]}"; do
                 create_network_namespace "${container}"
                 create_rootfs "${container}"
@@ -139,14 +189,21 @@ function main() {
                 container_up "${container}"
                 configure_mounts "${container}"
                 configure_os "${container}"
-#                start_sshd "${container}"
+                sleep 1
+                start_sshd "${container}"
             done
+
+            # Setting up network interfaces must be done after the container is stood up.
+            # Also out of laziness for now and wanting to just do something else, I am simply going
+            # to call the old script. It Just Works(TM).
+            bash ./lab-create-networks.sh
             ;;
         "down")
             for container in "${containers[@]}"; do
                 container_down "${container}"
-                sleep 1
+                sleep 1 # Replace me later with fixing the 'ps/pid' checker in the down call.
                 delete_network_namespace "${container}"
+                unbind_rootfs "${container}"
             done
             ;;
         *)

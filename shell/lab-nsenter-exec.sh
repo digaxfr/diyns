@@ -19,3 +19,5 @@ fi
 set -x
 
 nsenter --root=/proc/$(cat ${ctr_lib_dir}/${1}/sleeper.pid)/root --wd=/proc/$(cat ${ctr_lib_dir}/${1}/sleeper.pid)/root -a -t $(cat ${ctr_lib_dir}/${1}/sleeper.pid)
+
+#nsenter --root=/proc/$(cat ${ctr_lib_dir}/${1}/sleeper.pid)/root --wd=/proc/$(cat ${ctr_lib_dir}/${1}/sleeper.pid)/root -a -t $(cat ${ctr_lib_dir}/${1}/sleeper.pid) /usr/sbin/sshd -D > /tmp/1.out 2> /tmp/2.out &
